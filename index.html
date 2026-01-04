@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Large Language Models are Explainable Numerical Optimizers</title>
+    
+    <!-- ========== FONTS ========== -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- ========== MATH (KaTeX) ========== -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}]});"></script>
+
+    <!-- ========== STYLES ========== -->
+    <style>
+        :root {
+            --bg-primary: #faf8f5;
+            --bg-secondary: #f0ebe3;
+            --bg-code: #1a1a2e;
+            --text-primary: #2d2d2d;
+            --text-secondary: #5a5a5a;
+            --text-muted: #888;
+            --accent: #c24d2c;
+            --accent-light: #e8d5ce;
+            --accent-dark: #8b3720;
+            --border: #e0dbd3;
+            --code-text: #e4e4e7;
+            --table-header: #2d2d2d;
+            --table-row-alt: #f5f2ed;
+            --winner-llm: #d4edda;
+            --winner-classical: #fff3cd;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Crimson Pro', Georgia, serif;
+            font-size: 19px;
+            line-height: 1.65;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+        }
+        
+        /* Hero */
+        .hero {
+            background: linear-gradient(135deg, rgba(10, 15, 30, 0.65) 0%, rgba(15, 25, 50, 0.40) 100%),
+                        url('images/hero-bg3-flip.png');
+            background-size: cover;
+            background-position: center 65%;
+            padding: 80px 20px 60px;
+            position: relative;
+        }
+        .hero-content { max-width: 800px; margin: 0 auto; }
+        .hero h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(2.2rem, 5vw, 3.2rem);
+            font-weight: 700;
+            color: #fff;
+            line-height: 1.15;
+            margin-bottom: 16px;
+        }
+        .hero .subtitle {
+            font-family: 'Crimson Pro', serif;
+            font-style: italic;
+            font-size: 1.3rem;
+            color: rgba(255,255,255,0.7);
+            margin-bottom: 30px;
+        }
+        .hero .meta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.9);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        .hero .author {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1rem;
+            font-weight: 500;
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 4px;
+        }
+        .hero .date {
+            font-family: 'Crimson Pro', serif;
+            font-size: 0.95rem;
+            color: rgba(255,255,255,0.7);
+        }
+        
+        /* Container */
+        .container { max-width: 720px; margin: 0 auto; padding: 40px 24px 80px; }
+        
+        /* Typography */
+        p { margin-bottom: 0.9em; }
+        h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 600;
+            margin-top: 2em;
+            margin-bottom: 0.6em;
+            padding-bottom: 0.4em;
+            border-bottom: 2px solid var(--accent);
+        }
+        h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-top: 1.4em;
+            margin-bottom: 0.5em;
+        }
+        strong { font-weight: 600; }
+        a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-light); }
+        a:hover { color: var(--accent-dark); border-bottom-color: var(--accent); }
+        
+        /* Blockquotes */
+        blockquote {
+            margin: 1.3em 0;
+            padding: 1.2em 1.5em;
+            background: var(--bg-secondary);
+            border-left: 4px solid var(--accent);
+            font-style: italic;
+        }
+        blockquote strong { font-style: normal; }
+        
+        /* Code */
+        pre {
+            background: var(--bg-code);
+            border-radius: 8px;
+            padding: 1.2em;
+            overflow-x: auto;
+            margin: 1.2em 0;
+        }
+        pre code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            line-height: 1.5;
+            color: var(--code-text);
+        }
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.88em;
+            background: var(--bg-secondary);
+            padding: 0.12em 0.35em;
+            border-radius: 4px;
+            color: var(--accent-dark);
+        }
+        pre code { background: none; padding: 0; color: var(--code-text); }
+        .keyword { color: #c792ea; }
+        .string { color: #c3e88d; }
+        .number { color: #f78c6c; }
+        .comment { color: #676e95; font-style: italic; }
+        .function { color: #82aaff; }
+        
+        /* Math */
+        .math-block {
+            margin: 1.2em 0;
+            padding: 1em;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            text-align: center;
+            overflow-x: auto;
+        }
+        .math-note {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9em;
+            margin-top: -0.8em;
+        }
+        
+        /* Images & GIFs */
+        .figure {
+            margin: 1.5em 0;
+            text-align: center;
+        }
+        .figure img {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .figure-caption {
+            font-size: 0.9em;
+            color: var(--text-muted);
+            margin-top: 0.5em;
+            font-style: italic;
+        }
+        .figure-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1em;
+            margin: 1.5em 0;
+        }
+        .figure-grid .figure { margin: 0; }
+        
+        /* Cropped GIF containers */
+        .figure-grid .figure {
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Scale and position GIFs to crop white space - only in grids */
+        /* .figure-grid .figure img[src*="1d/"], 
+        .figure-grid .figure img[src*="2d/"] {
+            transform: scale(1.4);
+            transform-origin: center;
+        } */
+        
+        /* GIF placeholder - easy to add GIFs */
+        .gif-container {
+            margin: 1.5em 0;
+            text-align: center;
+        }
+        .gif-container img {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .gif-caption {
+            font-size: 0.9em;
+            color: var(--text-muted);
+            margin-top: 0.5em;
+            font-style: italic;
+        }
+        
+        /* Tables */
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 1.3em 0;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 0.88rem; 
+            background: #fff;
+        }
+        table thead {
+            border-top: 2px solid #333;
+            border-bottom: 1px solid #333;
+        }
+        th {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            color: #333;
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 0.85rem;
+            background: #fff;
+        }
+        td { 
+            padding: 8px 12px; 
+            border-bottom: 1px solid #eee;
+        }
+        tbody tr:last-child td {
+            border-bottom: 2px solid #333;
+        }
+        /* Function group separator */
+        tr.group-start td {
+            border-top: 1px solid #333;
+        }
+        /* Highlight only the winning metric */
+        .winner-metric { 
+            background: #d4e8f7 !important; 
+            font-weight: 600;
+        }
+        
+        /* Lists */
+        ul, ol { margin: 0.9em 0; padding-left: 1.4em; }
+        li { margin-bottom: 0.35em; }
+        
+        /* Dividers */
+        hr {
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+            margin: 2em 0;
+        }
+        
+        /* Callouts */
+        .result-highlight {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1.2em;
+            margin: 1.3em 0;
+            border-left: 4px solid var(--accent);
+        }
+        .result-highlight p:last-child { margin-bottom: 0; }
+        
+        /* Info Blocks (neutral) */
+        .info-blocks { display: grid; gap: 0.8em; margin: 1.2em 0; }
+        .info-blocks > div { padding: 0.9em; border-radius: 6px; }
+        .info-block { background: var(--bg-secondary); border-left: 3px solid var(--border); }
+        .info-block ul { margin: 0.5em 0 0 0; }
+        
+        /* Prompt Box */
+        .prompt-box {
+            background: #e8f4fc;
+            border: 2px solid #4a9fd4;
+            border-radius: 12px;
+            margin: 1.5em 0;
+            overflow: hidden;
+        }
+        .prompt-box-header {
+            background: #4a9fd4;
+            color: white;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            padding: 0.6em 1em;
+            font-size: 0.95rem;
+        }
+        .prompt-box-content {
+            padding: 1.2em 1.5em;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        .prompt-box-content ol {
+            margin: 0.8em 0 0 0;
+            padding-left: 1.5em;
+        }
+        .prompt-box-content li {
+            margin-bottom: 0.3em;
+        }
+        .prompt-comment {
+            color: #00a5a5;
+            font-style: italic;
+        }
+        
+        /* Footer */
+        .footer {
+            margin-top: 0;
+            padding-top: 1em;
+            padding-bottom: 1.5em;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+        }
+        
+        .footer .container {
+            padding-top: 0;
+            padding-bottom: 0.5em;
+        }
+        .footer h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1em;
+            color: var(--text-primary);
+        }
+        .footer p {
+            font-size: 0.95rem;
+            font-style: italic;
+            margin-bottom: 0.8em;
+        }
+        .footer p:last-child {
+            margin-bottom: 0;
+        }
+        .final-note { font-size: 0.92em; color: var(--text-muted); margin-top: 1.5em; }
+        
+        /* Progress bar */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            background: var(--accent);
+            width: 0%;
+            z-index: 1000;
+        }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            body { font-size: 17px; }
+            .hero { padding: 50px 20px 40px; }
+            .hero h1 { font-size: 1.8rem; }
+            .container { padding: 30px 16px 50px; }
+            h2 { font-size: 1.4rem; }
+            pre { padding: 0.9em; font-size: 0.78rem; border-radius: 0; margin-left: -16px; margin-right: -16px; }
+            th, td { padding: 8px 10px; font-size: 0.75rem; }
+            .figure-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" id="progress"></div>
+
+    <!-- ==================== HERO SECTION ==================== -->
+    <header class="hero">
+        <div class="hero-content">
+            <!-- EDIT: Category -->
+            <p class="meta">Research Blog</p>
+            
+            <!-- EDIT: Main title -->
+            <h1>Large Language Models are Explainable Optimizers</h1>
+            
+            <!-- EDIT: Subtitle -->
+            <p class="subtitle">An emergent behavior in LLMs with applications in robot learning and policy search</p>
+            
+            <!-- EDIT: Author and date -->
+            <p class="author">Kamalesh Kalirathinam</p>
+            <p class="date">Jan 3, 2026</p>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <!-- ==================== SECTION: Introduction ==================== -->
+        <p>A while back, we stumbled onto something that made us pause and ponder. We were experimenting with Large Language Models and measure its limits and capabilities, and we noticed something strange: <strong>LLMs could perform numerical optimization</strong>. Not by generating Python code that calls <code>scipy.optimize</code>, or by looking up formulas. But by actually <em>reasoning</em> about numbers, tracking patterns across iterations, and proposing better solutions step by step.</p>
+
+        <p>Our first reaction was skepticism. LLMs are trained to predict the next token. They're good at language, at patterns, at coding. But numerical optimization? That's math, That's calculus, That's calculating gradients!!</p>
+
+        <p>Turns out, LLMs can infact do optimization and they are surprisingly good at it.</p>
+        
+        <div class="figure">
+            <img src="images/1d-trial9_8.502_100.gif" alt="Mid optimization trial">
+            <p class="figure-caption">LLM(Gemini) trying to find the minima of a 1-D function</p>
+        </div>
+        
+        <p>This blog post is about our journey discovering this emergent capability, testing it rigorously, and ultimately using it to do robot learning. But before we get there, let's start from the beginning. Because if you're going to appreciate why this is wild, you need to understand what numerical optimization actually is, why it's hard, and how we've been doing it for the last couple of decades.</p>
+
+        <hr>
+
+        <!-- ==================== SECTION: What is Optimization ==================== -->
+        <h2>What is Numerical Optimization?</h2>
+
+        <p>At its core, numerical optimization is quite simple to state:</p>
+
+        <blockquote>
+            <strong>Find the value of x that makes f(x) as small (or large) as possible.</strong>
+        </blockquote>
+
+        <p>That's it. You have some function f(x), it takes some input x, and you want to find the x that gives you the best output. Here's the thing though: "simple to state" does not mean "simple to solve."</p>
+
+        <h3>A Motivating Example</h3>
+
+        <p>Let's say you're trying to find the lowest point in a mountain range. You're blindfolded. You can only feel the ground immediately beneath your feet. How do you find the valley?</p>
+
+        <p>The naive approach: take a step, check if you went down. If yes, keep going. If no, try a different direction. Repeat until you stop going down.</p>
+
+        <p>This is, essentially, what numerical optimization does. Except the "mountains" are mathematical functions, and they can have thousands or millions of dimensions.</p>
+
+        <h3>The Formal Setup</h3>
+
+        <p>In proper notation, we write:</p>
+
+        <div class="math-block">
+            $$\min_{\mathbf{x} \in \mathbb{R}^n} f(\mathbf{x})$$
+        </div>
+
+        <p>Where <strong>f</strong> is the <em>objective function</em> (also called loss function, cost function, or energy function), <strong>x</strong> is a vector of <em>parameters</em>, and <strong>n</strong> is the <em>dimensionality</em> of your problem.</p>
+
+        <p>If n = 1, you're finding the minimum of a curve. Easy to visualize. If n = 2, you're finding the lowest point on a surface. Still manageable. If n = 1,000,000, you're training a neural network. Welcome to deep learning.</p>
+
+        <hr>
+
+        <!-- ==================== SECTION: Classic Functions ==================== -->
+        <h2>Classic Objective Functions</h2>
+
+        <p>Before we get to methods, let's meet some of the functions that optimization researchers have been working with for decades. These are the "standard benchmarks," functions specifically designed to be nasty. We used these extensively in our experiments, so you'll see them again later.</p>
+
+        <h3>The Rastrigin Function</h3>
+
+        <div class="math-block">
+            $$f(\mathbf{x}) = An + \sum_{i=1}^{n} \left[ x_i^2 - A\cos(2\pi x_i) \right], \quad A = 10$$
+        </div>
+
+        <p>This function looks like an egg crate from hell. It's full of local minima, little valleys that look like the solution but aren't. The global minimum is at x = (0, 0, ..., 0), where f(x) = 0.</p>
+
+        <p><strong>Why it's hard:</strong> That cosine term creates a grid of local minima. Any gradient-based method will happily slide into the nearest one and declare victory, even though the real answer might be far away.</p>
+
+        <div class="figure">
+            <img src="images/rastrigin.png" alt="Rastrigin Function 3D Surface">
+            <p class="figure-caption">Rastrigin: The "egg crate" with countless local minima</p>
+        </div>
+
+        <h3>The Ackley Function</h3>
+
+        <div class="math-block">
+            $$f(\mathbf{x}) = -a \exp\left(-b\sqrt{\frac{1}{n}\sum_{i=1}^{n}x_i^2}\right) - \exp\left(\frac{1}{n}\sum_{i=1}^{n}\cos(cx_i)\right) + a + e$$
+        </div>
+        <p class="math-note">where $a = 20$, $b = 0.2$, $c = 2\pi$</p>
+
+        <p>Ackley looks like a funnel with a spiky bottom. There's a clear slope toward the center, but once you get close, it's like walking on broken glass, tiny variations everywhere.</p>
+
+        <p><strong>Why it's hard:</strong> The nearly-flat outer region makes it hard to know which direction to go, and the spiky center makes it hard to converge precisely.</p>
+
+        <div class="figure">
+            <img src="images/ackley.png" alt="Ackley Function 3D Surface">
+            <p class="figure-caption">Ackley: Funnel with a spiky, deceptive bottom</p>
+        </div>
+
+        <h3>The Levy Function</h3>
+
+        <div class="math-block">
+            $$f(\mathbf{x}) = \sin^2(\pi w_1) + \sum_{i=1}^{n-1}(w_i - 1)^2[1 + 10\sin^2(\pi w_i + 1)] + (w_n - 1)^2[1 + \sin^2(2\pi w_n)]$$
+        </div>
+        <p class="math-note">where $w_i = 1 + \frac{x_i - 1}{4}$</p>
+
+        <p><strong>Why it's hard:</strong> Lots of local minima, and the global minimum is at x = (1, 1, ..., 1), which is annoyingly non-obvious.</p>
+
+        <div class="figure">
+            <img src="images/levy.png" alt="Levy Function 3D Surface">
+            <p class="figure-caption">Levy: Complex landscape with hidden global minimum</p>
+        </div>
+
+        <h3>The Weierstrass Function</h3>
+
+        <div class="math-block">
+            $$f(\mathbf{x}) = \sum_{i=1}^{n}\left[\sum_{k=0}^{k_{max}} a^k \cos(2\pi b^k(x_i + 0.5))\right] - n\sum_{k=0}^{k_{max}} a^k \cos(\pi b^k)$$
+        </div>
+        <p class="math-note">where $a = 0.5$, $b = 3$, $k_{max} = 20$</p>
+
+        <p><strong>Why it’s hard:</strong> It’s a multi-scale ripple field. Even though it’s differentiable (this is a truncated series), it has oscillations at many frequencies, creating tons of local minima and making gradient methods bounce around unless step sizes are tuned very carefully.</p>
+
+        <div class="figure">
+            <img src="images/weierstrass.png" alt="Weierstrass Function 3D Surface">
+            <p class="figure-caption">Weierstrass: A fractal-like surface</p>
+        </div>
+
+        <h3>The Salomon Function</h3>
+
+        <div class="math-block">
+            $$f(\mathbf{x}) = 1 - \cos\left(2\pi\sqrt{\sum_{i=1}^{n}x_i^2}\right) + 0.1\sqrt{\sum_{i=1}^{n}x_i^2}$$
+        </div>
+
+        <p>Salomon creates beautiful concentric ripples emanating from the origin. The global minimum sits at x = (0, 0, ..., 0), but getting there requires navigating through rings of local minima.</p>
+
+        <p><strong>Why it's hard:</strong> The radial symmetry is deceptive; every direction looks equally promising, and the cosine term creates concentric valleys that trap gradient-based methods.</p>
+
+        <div class="figure">
+            <img src="images/salomon.png" alt="Salomon Function 3D Surface">
+            <p class="figure-caption">Salomon: Concentric ripples with radial symmetry</p>
+        </div>
+
+        <h3>Why These Functions Matter</h3>
+
+        <p>These aren't just academic exercises. Real-world optimization problems (training neural networks, tuning robot controllers, optimizing supply chains) often have the same nasty properties: many local minima (you can get stuck), flat regions (you don't know which way to go), high dimensionality (you can't visualize or brute-force), and noisy gradients (the signal is unreliable).</p>
+
+        <p>If your optimizer can handle these objective funcitons, it has a fighting chance in the real world.</p>
+
+        <hr>
+
+        <!-- ==================== SECTION: Why Numerical Optimization ==================== -->
+        <h2>Why Do We Need Numerical Optimization?</h2>
+
+        <p>You might be thinking: "Why not just solve for the minimum analytically? Take the derivative, set it to zero, done." Great question. Here's why that doesn't work:</p>
+
+        <h3>Most Interesting Functions Don't Have Closed-Form Solutions</h3>
+
+        <p>Sure, you can solve $f(x) = x^2$ analytically. The minimum is at x = 0. But try solving:</p>
+
+        <div class="math-block">
+            $$f(x) = \sin(x) \cdot e^{-x^2} + \cos(x^3) \cdot \log(1 + |x|)$$
+        </div>
+
+        <p> setting f(x) = 0, quickly turns into a messy equation with no practical closed-form solution and even then you’d still need to distinguish minima from maxima and saddles. You have to search!</p>
+
+        <h3>High Dimensionality Makes Analytical Solutions Impossible</h3>
+
+        <p>A neural network with 1 million parameters means solving a system with 1 million unknowns. Even if you could write down the gradient equations, solving them analytically is completely intractable.</p>
+
+        <h3>We Often Don't Even Have a Formula</h3>
+
+        <p>In reinforcement learning, your "objective function" is the expected reward over trajectories. You can't write down a nice equation for it. You can only sample trajectories and see what reward you get. This is called a <em>black-box</em> function.</p>
+
+        <h3>The Real World is Messy</h3>
+
+        <p>In our robotics work, our objective was often something like "make the ball land on the right side of the table." Try writing a differentiable equation for that. (Spoiler: we didn't. We used an LLM instead.)</p>
+
+        <hr>
+
+        <!-- ==================== SECTION: Traditional Methods ==================== -->
+        <h2>Traditional Optimization Methods</h2>
+
+        <p>Alright, so we can't solve things analytically. What do we do instead? We iterate. All iterative optimization methods follow the same basic loop:</p>
+
+<pre><code>x = <span class="function">initialize</span>()
+<span class="keyword">for</span> iteration <span class="keyword">in</span> <span class="function">range</span>(max_iterations):
+    direction = <span class="function">compute_update</span>(x, f)
+    x = x + step_size * direction
+<span class="keyword">return</span> x</code></pre>
+
+        <p>The magic is in how you compute that update direction.</p>
+
+        <!-- 
+        =====================================================
+        ADD GIF HERE: Gradient descent animation
+        =====================================================
+        <div class="gif-container">
+            <img src="YOUR_GIF_URL_HERE.gif" alt="Gradient descent animation">
+            <p class="gif-caption">Gradient descent finding its way down</p>
+        </div>
+        -->
+
+        <h3>Gradient Descent: The Gateway</h3>
+
+        <p>If you know calculus, you know the gradient $\nabla f(\mathbf{x})$ points in the direction of steepest <em>ascent</em>. So if you want to go <em>down</em>, you go the opposite way:</p>
+
+        <div class="math-block">
+            $$\mathbf{x}_{t+1} = \mathbf{x}_t - \eta \nabla f(\mathbf{x}_t)$$
+        </div>
+
+        <p>That's it. That's gradient descent.</p>
+
+        <div class="info-blocks">
+            <div class="info-block">
+                <strong>The Good:</strong>
+                <ul>
+                    <li>Quite simple</li>
+                    <li>Works surprisingly well in many cases</li>
+                    <li>Has nice theoretical guarantees for convex functions</li>
+                </ul>
+            </div>
+            <div class="info-block">
+                <strong>The Bad:</strong>
+                <ul>
+                    <li>Requires computing gradients (not always possible)</li>
+                    <li>Sensitive to learning rate (too big = diverge, too small = forever)</li>
+                    <li>Gets stuck in local minima</li>
+                    <li>Struggles with flat regions (gradient ≈ 0, so you stop moving)</li>
+                </ul>
+            </div>
+        </div>
+
+        <h3>The Learning Rate Problem</h3>
+
+        <p>We cannot overstate how annoying the learning rate is. Here's what happens:</p>
+
+<pre><code>lr = <span class="number">0.001</span>  → <span class="string">"Why is this taking so long? It's been 10,000 iterations."</span>
+lr = <span class="number">0.01</span>   → <span class="string">"Okay, making progress now."</span>
+lr = <span class="number">0.1</span>    → <span class="string">"Whoa, it's oscillating. Calm down."</span>
+lr = <span class="number">1.0</span>    → <span class="string">"And it's gone. Loss is NaN. Great."</span></code></pre>
+
+        <p>Every practitioner has felt this pain.</p>
+
+        <h3>Momentum: Give It Some Inertia</h3>
+
+        <p>Plain gradient descent is short-sighted. At each step it only looks at the local slope, moves a little downhill, then forgets everything it just learned. In noisy loss landscapes, this makes it jitter and zigzag. Momentum introduces a velocity term that accumulates gradient history:</p>
+
+        <div class="math-block">
+            $$\mathbf{v}_{t+1} = \beta \mathbf{v}_t + (1-\beta)\nabla f(\mathbf{x}_t), \quad \mathbf{x}_{t+1} = \mathbf{x}_t - \eta \mathbf{v}_{t+1}$$
+        </div>
+
+        <p>Now the optimizer has "memory." If it's been going in the same direction for a while, it builds up speed. This helps it go through flat regions and reduces oscillations.</p>
+
+        <h3>Adam: The One Everyone Actually Uses</h3>
+
+        <p>Adam (Adaptive Moment Estimation) is what most people use today. It combines momentum with adaptive learning rates:</p>
+
+        <div class="math-block">
+            $$m_t = \beta_1 m_{t-1} + (1-\beta_1)\nabla f, \quad v_t = \beta_2 v_{t-1} + (1-\beta_2)(\nabla f)^2$$
+            $$\mathbf{x}_{t+1} = \mathbf{x}_t - \eta \frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon}$$
+        </div>
+
+        <h3>Derivative-Free Methods</h3>
+
+        <p>What if you can't compute gradients? Maybe your function is a black box, it's discontinuous, or computing gradients is too expensive.</p>
+
+        <p><strong>Nelder-Mead (Simplex Method):</strong> Maintains a "simplex" of n+1 points in n dimensions, and iteratively moves the worst point toward the better ones. Like amoeba oozing toward food.</p>
+
+        <p><strong>Random Search:</strong> Sample points (often uniformly over the domain, or by perturbing the current best), evaluate them, and keep the best one. Simple but surprisingly effective.</p>
+
+        <p>These were our baselines when we started asking: can an LLM do better?</p>
+
+        <hr>
+
+        <!-- ==================== SECTION: Neural Networks ==================== -->
+        <h2>Optimization and Neural Networks</h2>
+
+        <p>Here's where it all comes together. Training a neural network <strong>is</strong> numerical optimization:</p>
+
+        <div class="math-block">
+            $$\min_{\boldsymbol{\theta}} \mathcal{L}(\boldsymbol{\theta}) = \min_{\boldsymbol{\theta}} \frac{1}{N}\sum_{i=1}^{N} \ell(f_{\boldsymbol{\theta}}(\mathbf{x}_i), y_i)$$
+        </div>
+
+        <p>The loss function measures how wrong your predictions are. The optimizer's job is to find weights that make the network less wrong.</p>
+
+        <h3>The Scale of the Problem</h3>
+
+        <p>Modern language models have: GPT-3 with 175 billion parameters, GPT-4 rumored at ~1.8 trillion, Llama-3 at 70 billion. That's 70,000,000,000 numbers to optimize. And the loss landscape has that many dimensions.</p>
+
+        <p>Think about that. You're trying to find a valley in a 70-billion-dimensional space. You can't visualize it. You can't brute-force it. You just have to trust that gradient descent will find something good.</p>
+
+        <h3>The Training Loop</h3>
+
+        <p>Every time you train a neural network, this is what's happening:</p>
+
+<pre><code><span class="keyword">for</span> epoch <span class="keyword">in</span> <span class="function">range</span>(num_epochs):
+    <span class="keyword">for</span> batch <span class="keyword">in</span> dataloader:
+        predictions = <span class="function">model</span>(batch.inputs)
+        loss = <span class="function">loss_function</span>(predictions, batch.targets)
+        loss.<span class="function">backward</span>()           <span class="comment"># compute gradients via backprop</span>
+        optimizer.<span class="function">step</span>()          <span class="comment"># update parameters (Adam/SGD/etc.)</span>
+        optimizer.<span class="function">zero_grad</span>()</code></pre>
+
+        <p>That <code>optimizer.step()</code> call? That's where all the optimization theory lives.</p>
+
+        <hr>
+
+        <!-- ==================== SECTION: The Discovery ==================== -->
+        <h2>The Plot Twist: We Discovered LLMs Can Optimize</h2>
+
+        <p>Now here's the twist that started our research journey. <strong>What if the neural network could BE the optimizer?</strong></p>
+
+        <p>Not "train a neural network to be an optimizer." But literally: take a pretrained LLM, give it a function, and ask it to find the minimum.</p>
+
+        <p>This sounds insane. LLMs are trained on text. They predict tokens. They don't "know" calculus (or do they?). We had to test it.</p>
+
+        <h3>The Discovery</h3>
+        
+        <p>What we found surprised us:</p>
+
+        <div class="figure">
+            <img src="images/2d-trial9-crop.gif" alt="2D optimization early stage">
+            <p class="figure-caption">LLM trying to find the minima of a 2D-Ackley function</p>
+        </div>
+
+        
+
+        <blockquote>
+            <strong>LLMs exhibit emergent numerical optimization capabilities.</strong>
+        </blockquote>
+
+        <p>"Emergent" is the key word. Nobody trained GPT to minimize functions. It just... figured it out. Somehow, in the process of learning to predict internet text, LLMs developed an implicit understanding of how optimization works.</p>
+
+        
+
+        
+
+        <h3>How We Set It Up</h3>
+
+        <p>The prompt goes something like this:</p>
+
+        <div class="prompt-box">
+            <div class="prompt-box-header">LLM Numerical Optimization Prompt</div>
+            <div class="prompt-box-content">
+                You are an optimization assistant, helping me find the global minimum of a mathematical function. I will give you the function evaluation and the current iteration number at each step. Your goal is to propose input values that efficiently lead us to the global minimum within a limited number of iterations (100).
+                <ol>
+                    <li>Here's how we'll interact: <span class="prompt-comment">% formatting instructions</span></li>
+                    <li>Remember: <span class="prompt-comment">% constraints to be respected</span></li>
+                </ol>
+            </div>
+        </div>
+
+        <p>The LLM is doing optimization <em>in its head</em>, using only function evaluations. No explicit gradients. No algorithm. Just... reasoning.</p>
+
+        <!-- 
+        =====================================================
+        ADD GIF HERE: LLM optimization conversation animation
+        =====================================================
+        <div class="gif-container">
+            <img src="YOUR_GIF_URL_HERE.gif" alt="LLM optimization process">
+            <p class="gif-caption">The LLM reasoning through optimization steps</p>
+        </div>
+        -->
+
+        <hr>
+
+        <!-- ==================== SECTION: Evidence ==================== -->
+        <h2>The Evidence: LLM vs. Classical Optimizers</h2>
+
+        <p>We weren't going to publish a paper based on vibes. We needed rigorous experiments.</p>
+
+        <p><strong>Setup:</strong> 5 functions × 4 dimensionalities = 20 total optimization tasks. 50 experiments per algorithm, 100 iterations each. Functions were <strong>shifted</strong> by a random offset to prevent the LLM from just guessing (0,0).</p>
+
+        <p><strong>Results (lower is better):</strong></p>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Function</th>
+                        <th>Dim</th>
+                        <th>Best Baseline</th>
+                        <th>2nd Best Baseline</th>
+                        <th>Gemini</th>
+                        <th>GPT-4o</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Ackley</td>
+                        <td>2D</td>
+                        <td>Adam 14.08 ± 6.21</td>
+                        <td>NM 14.12 ± 6.45</td>
+                        <td class="winner-metric">10.67 ± 6.11</td>
+                        <td>12.62 ± 7.15</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>4D</td>
+                        <td>Adam 14.91 ± 4.80</td>
+                        <td>NM 15.62 ± 3.32</td>
+                        <td class="winner-metric">12.75 ± 4.82</td>
+                        <td>15.24 ± 4.39</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>8D</td>
+                        <td>Adam 15.27 ± 2.75</td>
+                        <td>NM 15.75 ± 2.61</td>
+                        <td class="winner-metric">12.41 ± 3.31</td>
+                        <td>16.50 ± 1.82</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>16D</td>
+                        <td>Adam 15.79 ± 1.17</td>
+                        <td>NM 16.56 ± 0.99</td>
+                        <td class="winner-metric">13.83 ± 2.19</td>
+                        <td>17.00 ± 1.09</td>
+                    </tr>
+                    <tr class="group-start">
+                        <td>Rastrigin</td>
+                        <td>2D</td>
+                        <td>NM 47.68 ± 40.11</td>
+                        <td>Adam 73.77 ± 59.93</td>
+                        <td class="winner-metric">17.36 ± 21.83</td>
+                        <td>18.78 ± 31.29</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>4D</td>
+                        <td>Adam 139.13 ± 74.96</td>
+                        <td>NM 204.68 ± 109.28</td>
+                        <td class="winner-metric">98.88 ± 71.78</td>
+                        <td>125.63 ± 102.38</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>8D</td>
+                        <td>Adam 263.95 ± 107.02</td>
+                        <td>NM 421.61 ± 193.26</td>
+                        <td class="winner-metric">204.98 ± 96.72</td>
+                        <td>323.04 ± 134.70</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>16D</td>
+                        <td class="winner-metric">Adam 512.17 ± 145.34</td>
+                        <td>NM 925.40 ± 257.00</td>
+                        <td>566.40 ± 139.35</td>
+                        <td>831.16 ± 215.72</td>
+                    </tr>
+                    <tr class="group-start">
+                        <td>Levy</td>
+                        <td>2D</td>
+                        <td>Adam 13.93 ± 8.70</td>
+                        <td>NM 14.21 ± 8.81</td>
+                        <td class="winner-metric">5.36 ± 10.12</td>
+                        <td>13.35 ± 7.78</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>4D</td>
+                        <td class="winner-metric">Adam 22.71 ± 10.07</td>
+                        <td>GD 23.14 ± 9.93</td>
+                        <td>23.81 ± 29.38</td>
+                        <td>25.36 ± 13.65</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>8D</td>
+                        <td class="winner-metric">Adam 37.43 ± 14.66</td>
+                        <td>GD 38.20 ± 14.43</td>
+                        <td>68.39 ± 37.11</td>
+                        <td>53.52 ± 22.85</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>16D</td>
+                        <td class="winner-metric">Adam 73.99 ± 22.80</td>
+                        <td>GD 75.40 ± 22.36</td>
+                        <td>191.26 ± 68.28</td>
+                        <td>203.30 ± 101.14</td>
+                    </tr>
+                    <tr class="group-start">
+                        <td>Weierstrass</td>
+                        <td>2D</td>
+                        <td>NM 0.62 ± 0.78</td>
+                        <td>Adam 4.05 ± 1.13</td>
+                        <td>1.88 ± 0.98</td>
+                        <td class="winner-metric">0.57 ± 0.86</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>4D</td>
+                        <td class="winner-metric">NM 2.62 ± 1.34</td>
+                        <td>Adam 8.06 ± 1.71</td>
+                        <td>4.37 ± 1.73</td>
+                        <td>3.67 ± 1.81</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>8D</td>
+                        <td class="winner-metric">NM 6.44 ± 2.04</td>
+                        <td>Adam 15.99 ± 2.56</td>
+                        <td>10.34 ± 2.93</td>
+                        <td>11.42 ± 2.24</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>16D</td>
+                        <td class="winner-metric">NM 19.77 ± 4.67</td>
+                        <td>GD 31.07 ± 2.43</td>
+                        <td>25.53 ± 4.36</td>
+                        <td>28.86 ± 3.64</td>
+                    </tr>
+                    <tr class="group-start">
+                        <td>Salomon</td>
+                        <td>2D</td>
+                        <td>GD 0.87 ± 0.40</td>
+                        <td>NM 0.87 ± 0.41</td>
+                        <td class="winner-metric">0.69 ± 0.31</td>
+                        <td>0.81 ± 0.53</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>4D</td>
+                        <td>Adam 1.27 ± 0.64</td>
+                        <td>GD 1.36 ± 0.52</td>
+                        <td class="winner-metric">0.82 ± 0.26</td>
+                        <td>1.45 ± 0.57</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>8D</td>
+                        <td>GD 2.12 ± 0.49</td>
+                        <td>NM 2.14 ± 0.49</td>
+                        <td class="winner-metric">1.59 ± 0.38</td>
+                        <td>2.19 ± 0.48</td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td>16D</td>
+                        <td>GD 2.96 ± 0.43</td>
+                        <td>NM 2.98 ± 0.43</td>
+                        <td class="winner-metric">2.20 ± 0.50</td>
+                        <td>2.94 ± 0.49</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0.5em;">Means ± standard errors. NM = Nelder-Mead, GD = Gradient Descent.</p>
+
+        <div class="result-highlight">
+            <p><strong>Gemini achieved top performance on 12 out of 20 optimization tasks</strong>, beating Adam, gradient descent, and Nelder-Mead.</p>
+        </div>
+
+        <h3>What's Happening Under the Hood?</h3>
+
+        <p>When we looked at the LLM's explanations, we could see it developing strategies in real-time:</p>
+
+        <p><strong>Early iterations:</strong> <em>"We observe a decreasing trend in f(x) as x increases. Let's continue moving in the positive x direction."</em></p>
+
+        <p><strong>Late iterations:</strong> <em>"The function values at x = -0.719 and x = -0.711 are practically the same. The minimum likely lies between them."</em></p>
+
+        <p>The LLM was tracking history, identifying trends, estimating from finite differences, balancing exploration and exploitation, and using bisection-like refinement. It was doing optimization on the fly.</p>
+
+        <hr>
+
+        <!-- ==================== SECTION: Robot Learning ==================== -->
+        <h2>From Benchmark Functions to Robot Learning</h2>
+
+        <p>Evaluating the benchmark functions were crucial for our hypothesis, we then wanted to see if this could be applied to robot learning and teach a robot.</p>
+
+        <h3>The Setup: Robot Table Tennis</h3>
+
+        <p>We have a 6-DoF robot arm that plays table tennis. It can hit the ball, by tuning the parameters of a low level controller. Our goal: teach it to hit wherever the human wants.</p>
+
+
+        <h3>Our SAS-Prompt Approach</h3>
+
+        <p>SAS stands for <strong>Summarize, Analyze, Synthesize</strong>, a structured prompting framework that guides the LLM through self-improvement. At each iteration, we ask the model to:</p>
+
+        <p><strong>Summarize:</strong> Review the history of parameter-outcome pairs. What has been tried? What were the results?</p>
+
+        <p><strong>Analyze:</strong> Identify patterns and correlations. Which parameters seem to influence the outcome? In what direction?</p>
+
+        <p><strong>Synthesize:</strong> Propose new parameters based on this analysis, with explicit reasoning for each choice.</p>
+
+        <p>The robot has 8 parameters (a through h) controlling its swing. The human gives a simple goal: <strong>"Hit the ball as far right as possible."</strong> The LLM then enters a self-improvement loop, summarizing what it's seen, analyzing the patterns, and synthesizing new parameter proposals, iteration after iteration.</p>
+
+        <p>Here's the critical part: all the initial examples the LLM sees have the ball landing on the <em>left</em> side of the table. The robot has never successfully hit right. Yet from these examples, the LLM must figure out how to extrapolate.</p>
+
+        <h3>Watching the Robot Think</h3>
+
+        <p>What makes SAS-Prompt special is that you can see exactly <em>why</em> the robot makes each decision. Here's actual reasoning from our experiment across three iterations:</p>
+        
+        <div class="figure">
+            <img src="images/sas.png" alt="sas-self-improve" style="max-width: 150%; width: 125%;">
+            <p class="figure-caption">Self Improvement via SAS</p>
+        </div>
+
+        <p>Notice what's happening: the LLM is doing <em>science</em>. It forms hypotheses ("g shifts landing right"), tests them against the data, refines its understanding, and even discovers secondary effects ("d might also influence horizontal motion"). All in natural language.</p>
+
+        <div class="result-highlight">
+            <p><strong>Result:</strong> Starting from examples only on the LEFT side, the robot learned to hit to the far RIGHT by 14 iterations. Fourteen. Not fourteen thousand.</p>
+        </div>
+
+
+        <!-- ==================== SECTION: ProPS ==================== -->
+        <h2>ProPS: Scaling to Full Reinforcement Learning</h2>
+
+        <p>After SAS-Prompt worked on table tennis, we asked: how far can we push this? Could we use LLMs on <strong>full reinforcement learning</strong> tasks ?</p>
+
+        <h3>The Core Idea</h3>
+
+        <p>Traditional RL algorithms learn by computing gradients through the policy and updating parameters accordingly. Prompted Policy Seach(ProPS) takes a radically different approach: we replace the gradient computation entirely with an LLM that reasons about which parameters to try next.</p>
+
+        <p>The loop is simple: the LLM proposes policy parameters θ, those parameters define a policy π<sub>θ</sub> that takes actions in the environment, the environment returns rewards, and the LLM uses this feedback to propose better parameters. No gradients, no backpropagation. Just an LLM reasoning about what works and what doesn't.</p>
+
+        <div class="figure">
+            <img src="images/props.png" alt="props-overview" style="max-width: 100%; width: 55%;">
+            <p class="figure-caption">Props: Overview</p>
+        </div>
+
+        <h3>The ProPS Prompt</h3>
+
+        <p>The base ProPS prompt treats the LLM as a generic global optimizer. We don't tell it anything about the environment; just that it's optimizing some function f(params):</p>
+
+        <div class="prompt-box">
+            <div class="prompt-box-header">ProPS Prompt</div>
+            <div class="prompt-box-content">
+                <p>You are a good global optimizer, helping me find the global maximum of a mathematical function f(params). I will give you the function evaluation and the current iteration number at each step. Your goal is to propose input values that efficiently lead us to the global maximum within a limited number of iterations (400).</p>
+                <ol>
+                    <li>Regarding the parameters param: <span class="prompt-comment">% definitions of parameters</span></li>
+                    <li>Here's how we'll interact: <span class="prompt-comment">% formatting instructions</span></li>
+                    <li>Remember: <span class="prompt-comment">% constraints to be respected</span></li>
+                </ol>
+            </div>
+        </div>
+
+        <p>This is remarkably general: the LLM doesn't know it's doing RL. It just sees numbers going in and a score coming out.</p>
+
+        <h3>ProPS+: Adding Domain Knowledge</h3>
+
+        <p>But here's where LLMs really shine: we can tell them <em>what they're optimizing</em>. ProPS+ adds a natural language description of the environment, the policy structure, and the reward function:</p>
+
+        <div class="prompt-box">
+            <div class="prompt-box-header">ProPS+ Prompt</div>
+            <div class="prompt-box-content">
+                <p>You are a good global RL policy optimizer, helping me find an optimal policy in the following environment:</p>
+                <ol start="1">
+                    <li>Environment: <span class="prompt-comment">% definition of the environment, parameters and policy</span>
+                    <p>In the cartpole environment, a pole is attached by an un-actuated joint to a cart which moves along a frictionless track. The pendulum is placed upright on the cart and the goal is to balance the pole by applying forces in the left and right direction on the cart. The state is a vector of 4 elements, representing the cart position (-4.8 to 4.8), cart velocity (-inf to inf), pole angle (-0.418 to 0.418 rad), and pole angular velocity (-inf to inf) respectively. The goal is to keep the pole upright and the cart within the bounding position of [-2.4, 2.4]. The action space consists of 2 actions (0: push left, 1: push right).</p>
+                    <p>The policy is a linear policy with 10 parameters and works as follows: action = argmax(...) The reward is +1 for every time step the pole is upright and the cart is within the bounding position. The episode ends when the pole falls over or the cart goes out of bounds.</p>
+               
+                    <li>Regarding the parameters param: <span class="prompt-comment">% definitions of parameters</span></li>
+                    <li>Here's how we'll interact: <span class="prompt-comment">% formatting instructions</span></li>
+                    <li>Remember: <span class="prompt-comment">% constraints to be respected</span></li>
+                </ol>
+            </div>
+        </div>
+
+        <p>This is something no traditional RL algorithm can do. You can't tell PPO "the goal is to balance a pole"; it only understands gradients. But an LLM can read the description, understand what it means to balance a pole intuitively, and use that understanding to make smarter parameter proposals.</p>
+
+        <h3>Results Across 15 RL Environments</h3>
+
+        <p>We evaluated ProPS and ProPS+ against seven established RL algorithms (DQN, DDPG, TD3, SAC, TRPO, PPO, A2C) across 15 diverse environments, from classic control tasks to game-playing to navigation.</p>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Domain</th>
+                        <th>Best Baseline</th>
+                        <th>2nd Best Baseline</th>
+                        <th>ProPS</th>
+                        <th>ProPS+</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Mount. Car (C)</td>
+                        <td>SAC 86.65 ± 0.84</td>
+                        <td>PPO 78.16 ± 5.32</td>
+                        <td>87.21 ± 29.28</td>
+                        <td class="winner-metric"><strong>89.16 ± 29.72</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Inverted Pend.</td>
+                        <td>TRPO 571.31 ± 358.88</td>
+                        <td>PPO 218.65 ± 129.31</td>
+                        <td class="winner-metric"><strong>1000.00 ± 0.00</strong></td>
+                        <td class="winner-metric"><strong>1000.00 ± 0.00</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Inv. Dbl. Pend.</td>
+                        <td class="winner-metric">TRPO 3609.37 ± 4000.04</td>
+                        <td>PPO 108.60 ± 4.12</td>
+                        <td>128.17 ± 24.52</td>
+                        <td>148.39 ± 48.65</td>
+                    </tr>
+                    <tr>
+                        <td>Reacher</td>
+                        <td class="winner-metric">PPO -7.32 ± 0.38</td>
+                        <td>TRPO -8.93 ± 1.39</td>
+                        <td>-11.32 ± 1.37</td>
+                        <td>-18.15 ± 22.06</td>
+                    </tr>
+                    <tr>
+                        <td>Swimmer</td>
+                        <td>TRPO 52.96 ± 18.86</td>
+                        <td>A2C 39.40 ± 6.54</td>
+                        <td>218.83 ± 58.45</td>
+                        <td class="winner-metric"><strong>227.30 ± 56.23</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Hopper</td>
+                        <td class="winner-metric">TRPO 716.90 ± 385.20</td>
+                        <td>PPO 351.75 ± 157.71</td>
+                        <td>284.16 ± 165.62</td>
+                        <td>356.22 ± 292.35</td>
+                    </tr>
+                    <tr>
+                        <td>Walker</td>
+                        <td class="winner-metric">TRPO 519.38 ± 73.15</td>
+                        <td>PPO 469.78 ± 159.17</td>
+                        <td>147.17 ± 81.20</td>
+                        <td>126.75 ± 136.44</td>
+                    </tr>
+                    <tr>
+                        <td>Frozen Lake</td>
+                        <td>TRPO 0.22 ± 0.05</td>
+                        <td>PPO 0.16 ± 0.02</td>
+                        <td class="winner-metric"><strong>0.57 ± 0.17</strong></td>
+                        <td>0.19 ± 0.05</td>
+                    </tr>
+                    <tr>
+                        <td>Cliff Walking</td>
+                        <td class="winner-metric">TRPO -66.60 ± 13.61</td>
+                        <td>PPO -94.35 ± 3.96</td>
+                        <td>-100.00 ± 0.00</td>
+                        <td>-96.40 ± 22.90</td>
+                    </tr>
+                    <tr>
+                        <td>Maze</td>
+                        <td class="winner-metric">A2C 0.97 ± 0.00</td>
+                        <td class="winner-metric">TRPO 0.97 ± 0.00</td>
+                        <td>0.55 ± 0.83</td>
+                        <td class="winner-metric"><strong>0.97 ± 0.00</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Nim</td>
+                        <td>A2C 0.58 ± 0.10</td>
+                        <td>TRPO 0.50 ± 0.10</td>
+                        <td>0.33 ± 0.29</td>
+                        <td class="winner-metric"><strong>0.97 ± 0.09</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Mount. Car (D)</td>
+                        <td>DQN -194.36 ± 1.47</td>
+                        <td>A2C -200.00 ± 0.00</td>
+                        <td>-126.11 ± 21.67</td>
+                        <td class="winner-metric"><strong>-116.71 ± 15.20</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Navigation</td>
+                        <td class="winner-metric">TRPO 4223.51 ± 19.70</td>
+                        <td>PPO 4127.43 ± 24.29</td>
+                        <td>2587.30 ± 707.35</td>
+                        <td>2779.55 ± 270.65</td>
+                    </tr>
+                    <tr>
+                        <td>Pong</td>
+                        <td>PPO 2.29 ± 0.91</td>
+                        <td>TRPO 1.36 ± 1.05</td>
+                        <td>2.80 ± 0.26</td>
+                        <td class="winner-metric"><strong>2.99 ± 0.03</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Cart Pole</td>
+                        <td>TRPO 465.34 ± 62.32</td>
+                        <td>PPO 365.86 ± 73.38</td>
+                        <td>478.27 ± 65.17</td>
+                        <td class="winner-metric"><strong>500.00 ± 0.00</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p style="font-size: 0.85em; color: var(--text-muted); margin-top: 0.5em;">Means ± standard errors. Highlighted cells indicate best performance.</p>
+
+        <div class="result-highlight">
+            <p><strong>ProPS+ achieved top performance on 8 out of 15 tasks.</strong> Outperforming both TRPO (5 tasks) and ProPS (2 tasks)</p>
+        </div>
+
+        
+        <hr>
+        <!-- ==================== SECTION: Why It Matters ==================== -->
+
+        <h2>Why This Matters</h2>
+
+    <p>Our experiments revealed something deeper than just "LLMs can optimize." Let's break down the implications.</p>
+
+    <ul class="implications">
+        <li><strong>LLMs Have Emergent Optimization Capabilities: </strong> They were never explicitly trained, somewhere in those billions of parameters, an implicit optimizer emerged. One that can balance exploration and exploitation, identify trends from noisy data, and reason about cause and effect in dynamical systems.</li>
+
+        <li><strong>Natural Language is a Valid Optimization Interface: </strong> For decades, we communicated with optimizers through code, equations and gradients. Now we can just say: <em>"Find parameters that make the ball land on the right side."</em> The LLM translates intent into optimization while explaining itself: <em>"I increased parameter g because higher values correlated with rightward landing."</em></li>
+
+        <li><strong>LLMs See What Traditional RL Misses: </strong> Traditional RL has a structural blindness, it only sees the final reward. A robot attempting to walk receives a score at the end of each episode, but the algorithm never truly <em>understands</em> what happened during the rollout. It doesn't know that the robot almost balanced at timestep 47 before falling. It doesn't recognize that the left leg moved too aggressively. It just sees-episode reward = 12. This is why traditional RL needs millions of samples. Without understanding the <em>why</em> behind each outcome, it must blindly explore the parameter space, hoping to stumble upon improvements through sheer statistical accumulation. LLMs break this pattern: when our model analyzes a trajectory, it reasons about intermediate states: <em>"The value spiked too high at iteration 15. I should pull back on parameter g."</em> This is semantic feedback, not just numerical signal. The model builds a causal understanding of how parameters affect outcomes.</li>
+
+        <li><strong>Foundational Knowledge Helps the Exploration Phase: </strong> Traditional optimizers start from scratch every time, with no intuition about what "balance" means, no sense that velocity and acceleration are related. LLMs bring billions of parameters worth of world knowledge. When we say <em>"keep the pole upright,"</em> the model already has some understanding of what it means to keep the pole upright. Which lets it make intelligent jumps rather than incremental steps.</li>
+    </ul>
+
+    <h3>Where This Could Lead</h3>
+
+    <ul class="implications">
+        <li><strong>Learning Like Humans Learn.</strong> Think about how you learned to drive. Your "reward signal" wasn't a score at the end of each trip. It was a continuous stream of intuitive feedback: <em>that turn was too sharp, I braked too late, I should have checked the mirror earlier.</em> You understood <em>why</em> something felt wrong, and you adjusted accordingly. This is exactly what we observe in our experiments. The LLM doesn't just receive "reward = 0.73"; it analyzes the relationship between its parameter choices and the outcomes, building intuitions like <em>"increasing g shifts the ball rightward"</em> or <em>"high d values correlate with instability."</em> It develops a mental model of the system, just as a human driver develops a feel for the car. Ilya Sutskever in a recent <a href="https://www.dwarkesh.com/p/ilya-sutskever-2">interview</a> with Dwarkesh Patel, identified the core problem: <em>"Why should it take so much more data for these models to learn than humans? For a human, we don't necessarily need a verifiable reward."</em> Our work suggests a unique direction->using LLMs to extract richer supervision from each rollout: not just a scalar reward, but a causal understanding of what happened and why.</li>
+
+        <li><strong>Toward Better Reward Modeling.</strong> One of the hardest problems in RL is specifying what you actually want(the reward function). Get it slightly wrong, and you get reward hacking. Make it too sparse, and learning becomes intractable. LLMs offer a different path. Instead of carefully engineering a numerical reward function, you can describe your goal in natural language: <em>"hit the ball to the right side"</em> or <em>"keep the cart balanced while staying within bounds."</em> The LLM translates this intent into optimization pressure, using its understanding of language and world to fill in the gaps that a numerical reward would miss. This is still primitive, and we're not claiming to have solved reward modeling. But the direction is promising. As LLMs improve at understanding context and intent, they may become powerful tools for bridging the gap between what humans want and what optimization algorithms can work with.</li>
+    </ul>
+
+    
+    <hr>
+    
+    
+    <!-- ==================== SECTION: Conclusion ==================== -->
+    <h2>Conclusion</h2>
+
+    <p>We started this research skeptical that LLMs could do "numerical optimization". We're ending it with a different question: what <em>else</em> can they do that we haven't thought to ask?</p>
+
+    <blockquote>
+        <strong>The traditional RL loop is: act → receive reward → update blindly.<br>
+        The LLM loop is: act → observe → understand → improve deliberately.</strong>
+    </blockquote>
+
+    <p>This shift from blind optimization to reasoned optimization matters. It's not just that LLMs can match classical algorithms on benchmarks; it's that they optimize in a fundamentally more interpretable, more sample-efficient, and more human-compatible way.</p>
+
+    <p>Our results suggest that LLMs have absorbed something deeper than pattern matching. Somewhere in those billions of parameters, they've developed an implicit understanding of how to navigate numerical landscapes: how to balance exploration and exploitation, how to identify trends from noisy data, how to reason about cause and effect in dynamical systems.</p>
+
+    <p>We don't think LLMs will replace traditional RL for all problems rightnow. High-dimensional continuous control, long-horizon planning, and tasks requiring billions of samples will likely still favor gradient-based methods. But for problems where human knowledge can help, or where interpretability is crucial, LLMs can help the exisiting RL framework and may even replace them in the future.</p>
+
+    <p>The deeper implication is about the future of learning algorithms. Dwarkesh Patel recently argued in his <a href="https://www.dwarkesh.com/p/thoughts-on-ai-progress-dec-2025">blog</a> that the key missing piece for AGI is continual learning, the ability to improve from semantic feedback and experience, the way humans do. If LLMs can already do primitive versions of this, improving from reasoning about outcomes rather than just numerical reward, then the path to more capable AI systems may run through language models in ways we're only beginning to understand.</p>
+
+    <p>We're excited to see where this goes next.</p>
+        
+    <hr>
+    
+    <!-- ==================== SECTION: Learn More ==================== -->
+    <div class="result-highlight" style="background: var(--bg-secondary); border-left-color: var(--accent);">
+        <h3 style="margin-top: 0; margin-bottom: 1em;">If you would like to learn more about our work</h3>
+
+        <p><em><strong>SAS-Prompt</strong>: Large Language Models as Numerical Optimizers for Robot Self-Improvement<br>
+        <a href="https://arxiv.org/abs/2504.20459">Paper</a> &#183; <a href="https://sites.google.com/asu.edu/sas-llm/">Project Website</a></em></p>
+
+        <p><em><strong>Prompted Policy Search (ProPS)</strong>: Reinforcement Learning through Linguistic and Numerical Reasoning in LLMs<br>
+        <a href="https://arxiv.org/abs/2511.21928">Paper</a> &#183; <a href="https://props-llm.github.io/">Project Website</a></em></p>
+
+        <p style="margin-bottom: 0;"><em><strong>Introduction to In-Context Learning</strong>: For Language, Computer Vision, and Robotics<br>
+        <a href="https://intro-to-icl.github.io/">Website</a></em></p>
+    </div>
+    
+    </main>
+
+    <!-- ========== SCRIPTS ========== -->
+    <script>
+        // Reading progress bar
+        window.addEventListener('scroll', () => {
+            const scrolled = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+            document.getElementById('progress').style.width = scrolled + '%';
+        });
+    </script>
+</body>
+</html>
