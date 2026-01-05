@@ -13,8 +13,3 @@ Visit the blog at: [https://llm-optimizers.github.io](https://llm-optimizers.git
 - **Prompted Policy Search (ProPS)**: Reinforcement Learning through Linguistic and Numerical Reasoning in LLMs  
   [Paper](https://arxiv.org/abs/2511.21928) · [Project Website](https://props-llm.github.io/)
 
-## Author
-Kamalesh Kalirathinam
-
-## License
-This work is licensed under a Creative Commons Attribution 4.0 International License.
